@@ -1,3 +1,5 @@
+- 2026-09-14 | packages/shared | TypeScript domain model and utility layer | introduced | Typed HealthCore entities, filtering, sorting, searching, aggregation, and business validation primitives for Milestone Two.
+
 # HealthCore Technology Inventory
 
 Purpose: track technology present in this repository and additions over time.

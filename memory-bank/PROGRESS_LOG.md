@@ -1,3 +1,5 @@
+- 2026-09-14 | Milestone 2 | packages/shared/types | Added typed company entities, generic filtering/sorting, linear and binary search, aggregation reports, and HealthCore enquiry validation. | Add focused automated tests and connect the shared contracts to the next application surface.
+
 # HealthCore Progress Log
 
 Purpose: maintain an append-only timeline of milestone and implementation progress.
