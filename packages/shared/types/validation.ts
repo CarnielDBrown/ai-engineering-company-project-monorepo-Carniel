@@ -1,7 +1,7 @@
 import {
   HEALTHCORE_US_CLINIC_NAMES,
+  PATIENT_SERVICE_TYPES,
   PatientEnquiry,
-  SERVICE_TYPES,
   ValidationError,
   ValidationOptions,
   ValidationResult,
@@ -95,7 +95,7 @@ function validatePreferredDate(value: string, errors: ValidationError[], referen
 }
 
 function validateService(value: string, errors: ValidationError[]): void {
-  if (!SERVICE_TYPES.includes(value as PatientEnquiry["serviceType"])) {
+  if (!PATIENT_SERVICE_TYPES.includes(value as PatientEnquiry["serviceType"])) {
     errors.push({ field: "serviceType", message: "Select the type of care you are looking for" });
   }
 }

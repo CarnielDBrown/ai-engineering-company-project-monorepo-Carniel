@@ -1,5 +1,3 @@
-- 2026-09-14 | Milestone 2 | packages/shared/types | Added typed company entities, generic filtering/sorting, linear and binary search, aggregation reports, and HealthCore enquiry validation. | Add focused automated tests and connect the shared contracts to the next application surface.
-
 # HealthCore Progress Log
 
 Purpose: maintain an append-only timeline of milestone and implementation progress.
@@ -26,3 +24,4 @@ Use this format for each entry:
 - 2026-09-11 | Milestone 1 | uis/website/js | Implemented real-time bilingual validation blocking submission on any error and showing the localized success message on valid submit. | Add automated tests for cross-field validation rules.
 - 2026-09-11 | Milestone 1 | uis/website | Removed the insurance section, added French, Arabic, Japanese, and Chinese preferred-language options, and split phone entry into a country-code select plus digits-only number input. | Confirm the reduced field set with the stakeholder.
 - 2026-09-11 | Milestone 1 | infra | Exposed the static site on the public Codespaces URL for port 8080 to allow external auditing. | Revoke public port visibility once the external audit is complete.
+- 2026-09-16 | Milestone 2 | packages/shared/types and packages/shared/src/utils | Added exact Claim, Appointment, Clinician, and Location models; collection/search helpers; denial, no-show, and CME reports; and claim/clinician business validation. | Add the shared utilities to the next operational dashboard surface.

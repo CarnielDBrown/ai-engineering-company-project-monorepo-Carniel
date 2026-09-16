@@ -1,5 +1,3 @@
-- 2026-09-14 | packages/shared | TypeScript domain model and utility layer | introduced | Typed HealthCore entities, filtering, sorting, searching, aggregation, and business validation primitives for Milestone Two.
-
 # HealthCore Technology Inventory
 
 Purpose: track technology present in this repository and additions over time.
@@ -30,3 +28,4 @@ Example:
 - 2026-09-11 | uis/website | Schema.org JSON-LD | introduced | MedicalOrganization and per-clinic MedicalClinic structured data for search visibility.
 - 2026-09-11 | uis/website/js | Vanilla JavaScript | introduced | Language switching and real-time client-side form validation without a build step.
 - 2026-09-11 | infra | Python http.server | introduced | Lightweight static host on port 8080 for Codespaces preview and external audit.
+- 2026-09-16 | packages/shared | TypeScript domain model and utility layer | introduced | Exact HealthCore Milestone Two entities, collection operations, operational reports, and business validations.

@@ -8,10 +8,10 @@ export interface BaseEntity {
 
 export type CountryCode = "US" | "GB";
 export type ClinicStatus = "active" | "inactive";
-export type AppointmentStatus = "requested" | "confirmed" | "completed" | "cancelled" | "no_show";
+export type AppointmentStatus = "scheduled" | "confirmed" | "completed" | "no_show" | "cancelled";
 export type PatientLanguage = "English" | "Spanish";
 export type PreferredTime = "morning" | "afternoon" | "evening";
-export type ServiceType =
+export type PatientServiceType =
   | "Primary Care"
   | "Chronic Disease Management"
   | "Specialist Consultation"
@@ -19,6 +19,24 @@ export type ServiceType =
   | "Women's Health"
   | "Paediatric Care"
   | "Mental Health";
+export type ServiceType =
+  | "primary_care"
+  | "chronic_disease"
+  | "preventive"
+  | "specialist"
+  | "womens_health"
+  | "paediatric"
+  | "mental_health";
+export type ClaimStatus = "submitted" | "approved" | "denied" | "pending" | "appealed";
+export type DenialReason =
+  | "missing_authorisation"
+  | "coding_error"
+  | "duplicate_claim"
+  | "patient_not_covered"
+  | "service_not_covered"
+  | "incomplete_documentation";
+export type ClinicianRole = "physician" | "nurse_practitioner" | "nurse" | "medical_assistant";
+export type CMEStatus = "on_track" | "at_risk" | "overdue" | "complete";
 export type SortDirection = "asc" | "desc";
 
 export interface Clinic extends BaseEntity {
@@ -45,15 +63,16 @@ export interface Patient extends BaseEntity {
   insuranceMemberId?: string;
 }
 
-export interface Appointment extends BaseEntity {
-  patientId: Id;
-  clinicId: Id;
+export interface Appointment {
+  appointmentId: string;
+  patientId: string;
+  locationId: string;
   serviceType: ServiceType;
-  appointmentDate: string;
-  preferredTime: PreferredTime;
+  scheduledDate: string;
+  scheduledTime: string;
   status: AppointmentStatus;
-  estimatedCharge: number;
-  noShowRiskScore?: number;
+  noShowReason?: string;
+  confirmedAt?: string;
 }
 
 export interface PatientEnquiry extends BaseEntity {
@@ -66,7 +85,7 @@ export interface PatientEnquiry extends BaseEntity {
   preferredClinic: string;
   preferredDate: string;
   preferredTime: PreferredTime;
-  serviceType: ServiceType;
+  serviceType: PatientServiceType;
   newPatient: boolean;
   hasInsurance: boolean;
   insuranceProvider?: string;
@@ -88,7 +107,7 @@ export interface StaffMember extends BaseEntity {
 }
 
 export interface Service extends BaseEntity {
-  name: ServiceType;
+  name: PatientServiceType;
   category: "primary_care" | "specialist" | "preventive" | "mental_health";
   description: string;
   startingPrice: number;
@@ -137,6 +156,16 @@ export const HEALTHCORE_US_CLINIC_NAMES: readonly string[] = [
 ];
 
 export const SERVICE_TYPES: readonly ServiceType[] = [
+  "primary_care",
+  "chronic_disease",
+  "preventive",
+  "specialist",
+  "womens_health",
+  "paediatric",
+  "mental_health",
+];
+
+export const PATIENT_SERVICE_TYPES: readonly PatientServiceType[] = [
   "Primary Care",
   "Chronic Disease Management",
   "Specialist Consultation",
@@ -146,5 +175,61 @@ export const SERVICE_TYPES: readonly ServiceType[] = [
   "Mental Health",
 ];
 
+export interface Claim {
+  claimId: string;
+  patientId: string;
+  locationId: string;
+  serviceType: ServiceType;
+  payerName: string;
+  payerId: string;
+  submissionDate: string;
+  claimAmount: number;
+  status: ClaimStatus;
+  denialReason?: DenialReason;
+  resubmitted: boolean;
+}
+
+export interface Clinician {
+  clinicianId: string;
+  firstName: string;
+  lastName: string;
+  role: ClinicianRole;
+  locationId: string;
+  licenceState: string;
+  licenceExpiryDate: string;
+  cmeHoursRequired: number;
+  cmeHoursLogged: number;
+  cmeYearStartDate: string;
+}
+
+export interface Location {
+  locationId: string;
+  name: string;
+  city: string;
+  stateOrCountry: string;
+  country: "US" | "UK";
+  phone: string;
+  averageConsultationFee: Record<ServiceType, number>;
+}
+
+export interface CMEReport {
+  clinicianId: string;
+  fullName: string;
+  role: ClinicianRole;
+  locationId: string;
+  hoursRequired: number;
+  hoursLogged: number;
+  hoursRemaining: number;
+  percentComplete: number;
+  daysRemainingInCycle: number;
+  complianceStatus: CMEStatus;
+  licenceExpiryDate: string;
+  licenceDaysRemaining: number;
+}
+
 export * from "./queries";
 export * from "./validation";
+export * from "./collections";
+export * from "./search";
+export * from "./transformations";
+export * from "./validations";
