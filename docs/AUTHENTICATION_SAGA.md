@@ -76,6 +76,6 @@ Create and execute a documented test plan for the authentication API, covering h
 - Phase 1 — Authentication API: implemented and validated on branch `feature/auth-api`, commit `beba6d9` (`feat(api): add JWT authentication`). Validation recorded in `services/api/AUTHENTICATION_API_PLAN.md`.
 - Phase 2 — Internal authentication flows: implemented and validated on branch `feature/auth-frontend`, including API-response hotfix snapshot `7b4c555`.
 - Phase 3 — Password recovery and change: implemented and snapshotted on the pushed branch `feature/auth-recovery` at `2af5061`; API suite (**22 passed**), backoffice lint/build, and editor diagnostics passed. Real Resend delivery remains unverified without user-supplied provider configuration; see `services/api/PASSWORD_RECOVERY_PLAN.md`.
-- Phase 4 — Error handling: implementation completed and validated on `feature/auth-recovery`; see `services/api/ERROR_HANDLING_PLAN.md` for scope, checks, and the pandas-not-installed limitation. The phase has **not** been separately snapshotted, so phase 5 must not start yet.
-- Phase 5 — Building bullet-proof applications: planned; not started. Begin only after phase 4 passes its exit gate and is snapshotted.
+- Phase 4 — Error handling: implemented, validated, and snapshotted in pushed commit `6a8eef0` on `feature/auth-recovery`; see `services/api/ERROR_HANDLING_PLAN.md` for checks and the pandas runtime limitation.
+- Phase 5 — Building bullet-proof applications: started from the verified Phase 4 snapshot on `feature/bullet-proof-tests`; see `services/api/PHASE_5_TESTING_PLAN.md` for the active plan.
 - The worktree contains unrelated changes and generated/local artifacts. Preserve them and stage only explicitly reviewed phase-owned files.
