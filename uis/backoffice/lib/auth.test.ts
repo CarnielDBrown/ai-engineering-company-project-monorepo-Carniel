@@ -57,12 +57,20 @@ describe("API error messages", () => {
     expect(apiError({ detail: "Incorrect email or password" }, "Fallback")).toBe(
       "Incorrect email or password",
     );
+    expect(apiError({ detail: "A medical supply with this SKU already exists" }, "Fallback")).toBe(
+      "A medical supply with this SKU already exists",
+    );
     expect(apiError({ detail: "database password=secret" }, "Fallback")).toBe("Fallback");
     expect(apiError({ detail: ["validation", "details"] }, "Fallback")).toBe(
       "Please check the information and try again.",
     );
     expect(apiError({ message: "private failure" }, "Fallback")).toBe("Fallback");
     expect(apiError(null, "Fallback")).toBe("Fallback");
+    expect(apiError({ detail: "Insufficient stock for supply 'Nitrile gloves'. Available: 24, requested: 99." }, "Fallback")).toBe(
+      "Insufficient stock for Nitrile gloves. Available: 24, requested: 99.",
+    );
+    expect(apiError({ detail: "Insufficient stock for supply 'Nitrile gloves'. Available: secret, requested: 99." }, "Fallback")).toBe("Fallback");
+    expect(apiError({ detail: "Insufficient stock for supply 'Nitrile gloves'. Available: 24, requested: 99. postgres://secret" }, "Fallback")).toBe("Fallback");
   });
 });
 

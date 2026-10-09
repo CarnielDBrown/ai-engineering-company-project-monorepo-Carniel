@@ -76,7 +76,7 @@ describe("inventory page", () => {
     expect(await screen.findByText(/No supplies are registered yet/)).toBeTruthy();
   });
 
-  it("submits delivery and consumption using live supply/stock, then refreshes stock and history", async () => {
+  it("submits delivery and consumption using API-fetched selected stock, then refreshes stock and history", async () => {
     queueInventory();
     render(<InventoryPage />);
     await waitForInitialLoad();
@@ -98,39 +98,63 @@ describe("inventory page", () => {
     });
 
     mockedAuthFetch
+      .mockResolvedValueOnce(jsonResponse({ ...product, current_stock: 36 }))
       .mockResolvedValueOnce(jsonResponse({ ...outbound, order_id: 12 }, 201))
       .mockResolvedValueOnce(jsonResponse([{ ...product, current_stock: 30 }]))
       .mockResolvedValueOnce(jsonResponse([inbound, outbound]));
     const consumptionForm = screen.getByRole("heading", { name: "Record a consumption" }).closest("section")!;
     await user.selectOptions(within(consumptionForm).getByLabelText("Supply"), "7");
-    expect(screen.getByText(/Available before submission:/).textContent).toContain("36");
+    expect((await screen.findByText(/Available before submission:/)).textContent).toContain("36");
+    expect(mockedAuthFetch.mock.calls[5][0]).toBe("/inventory/products/7");
     await user.type(within(consumptionForm).getByLabelText("Quantity"), "6");
     await user.selectOptions(within(consumptionForm).getByLabelText("Consumption type"), "expiry_waste");
     await user.click(within(consumptionForm).getByRole("button", { name: /Record consumption/ }));
-    await waitFor(() => expect(mockedAuthFetch).toHaveBeenCalledTimes(8));
-    expect(mockedAuthFetch.mock.calls[5][0]).toBe("/inventory/orders/outbound");
-    expect(JSON.parse(String(mockedAuthFetch.mock.calls[5][1]?.body))).toEqual({
+    await waitFor(() => expect(mockedAuthFetch).toHaveBeenCalledTimes(9));
+    expect(mockedAuthFetch.mock.calls[6][0]).toBe("/inventory/orders/outbound");
+    expect(JSON.parse(String(mockedAuthFetch.mock.calls[6][1]?.body))).toEqual({
       supply_id: 7, quantity: 6, consumption_type: "expiry_waste", clinic_id: 1,
     });
-    expect(mockedAuthFetch.mock.calls[6][0]).toBe("/inventory/products");
-    expect(mockedAuthFetch.mock.calls[7][0]).toBe("/inventory/orders");
+    expect(mockedAuthFetch.mock.calls[7][0]).toBe("/inventory/products");
+    expect(mockedAuthFetch.mock.calls[8][0]).toBe("/inventory/orders");
   });
 
-  it("retains outbound form input and displays a safe API rejection", async () => {
+  it("warns and prevents submission when requested quantity exceeds freshly fetched stock", async () => {
     queueInventory();
     render(<InventoryPage />);
     await waitForInitialLoad();
-    mockedAuthFetch.mockResolvedValueOnce(jsonResponse({ detail: "Insufficient stock for supply 'Nitrile gloves'. Available: 24, requested: 99." }, 400));
+    mockedAuthFetch.mockResolvedValueOnce(jsonResponse({ ...product, current_stock: 3 }));
 
     const form = screen.getByRole("heading", { name: "Record a consumption" }).closest("section")!;
     const user = userEvent.setup();
     await user.selectOptions(within(form).getByLabelText("Supply"), "7");
+    expect((await screen.findByText(/Available before submission:/)).textContent).toContain("3");
+    expect(mockedAuthFetch.mock.calls[2][0]).toBe("/inventory/products/7");
+
     const quantity = within(form).getByLabelText("Quantity") as HTMLInputElement;
-    fireEvent.change(quantity, { target: { value: "99" } });
+    fireEvent.change(quantity, { target: { value: "4" } });
+    expect(screen.getByRole("alert").textContent).toContain("exceeds the available stock (3)");
+    expect(within(form).getByRole("button", { name: /Record consumption/ })).toHaveProperty("disabled", true);
+    expect(mockedAuthFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("retains outbound input and displays safe server detail if stock changes after refresh", async () => {
+    queueInventory();
+    render(<InventoryPage />);
+    await waitForInitialLoad();
+    mockedAuthFetch
+      .mockResolvedValueOnce(jsonResponse({ ...product, current_stock: 24 }))
+      .mockResolvedValueOnce(jsonResponse({ detail: "Insufficient stock for supply 'Nitrile gloves'. Available: 20, requested: 23." }, 400));
+
+    const form = screen.getByRole("heading", { name: "Record a consumption" }).closest("section")!;
+    const user = userEvent.setup();
+    await user.selectOptions(within(form).getByLabelText("Supply"), "7");
+    await screen.findByText(/Available before submission:/);
+    const quantity = within(form).getByLabelText("Quantity") as HTMLInputElement;
+    fireEvent.change(quantity, { target: { value: "23" } });
     fireEvent.submit(within(form).getByRole("button", { name: /Record consumption/ }).closest("form")!);
 
-    expect((await screen.findByRole("alert")).textContent).toContain("Unable to record the consumption");
-    expect(quantity.value).toBe("99");
+    expect((await screen.findByRole("alert")).textContent).toContain("Insufficient stock for Nitrile gloves. Available: 20, requested: 23.");
+    expect(quantity.value).toBe("23");
     expect(mockedAuthFetch.mock.calls.at(-1)?.[0]).toBe("/inventory/orders/outbound");
   });
 });

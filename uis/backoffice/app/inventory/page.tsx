@@ -1,17 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/sidebar";
-import { ApiRequestError, authFetch, readApiResponse } from "@/lib/auth";
-import { formatInventoryDate, InventoryOrder, InventoryProduct, lowStockThreshold } from "@/lib/inventory";
+import { ApiRequestError } from "@/lib/auth";
+import {
+  createInventoryInboundOrder,
+  createInventoryOutboundOrder,
+  createInventoryProduct,
+  formatInventoryDate,
+  getInventoryOrders,
+  getInventoryProduct,
+  getInventoryProducts,
+  InventoryOrder,
+  InventoryProduct,
+  InventoryProductCreate,
+  lowStockThreshold,
+} from "@/lib/inventory";
 import "../operations.css";
 
 const productCategories = ["ppe", "wound_care", "diagnostics", "medications", "consumables"] as const;
 const units = ["box", "unit", "pack", "vial"] as const;
-const emptyProductForm = { name: "", sku: "", category: "ppe", unit: "box", country: "US" };
+const emptyProductForm: InventoryProductCreate = { name: "", sku: "", category: "ppe", unit: "box", country: "US" };
 const emptyInboundForm = { supply_id: "", quantity: "", vendor_name: "", clinic_id: "1" };
-const emptyOutboundForm = { supply_id: "", quantity: "", consumption_type: "clinical_use", clinic_id: "1" };
+const emptyOutboundForm: { supply_id: string; quantity: string; consumption_type: "clinical_use" | "expiry_waste"; clinic_id: string } = { supply_id: "", quantity: "", consumption_type: "clinical_use", clinic_id: "1" };
 
 function pluralUnit(unit: InventoryProduct["unit"], quantity: number): string {
   if (quantity === 1) return unit;
@@ -28,21 +40,43 @@ export default function InventoryPage() {
   const [productFormError, setProductFormError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selectedOutboundProduct, setSelectedOutboundProduct] = useState<InventoryProduct | null>(null);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockError, setStockError] = useState("");
+  const stockRequestId = useRef(0);
   const threshold = useMemo(() => lowStockThreshold(products), [products]);
-  const selectedOutboundProduct = products.find((product) => String(product.id) === outboundForm.supply_id);
+  const requestedQuantity = Number(outboundForm.quantity);
+  const exceedsAvailableStock = Boolean(
+    selectedOutboundProduct && Number.isInteger(requestedQuantity) && requestedQuantity > selectedOutboundProduct.current_stock,
+  );
+
+  const selectOutboundSupply = useCallback(async (supplyId: string) => {
+    setOutboundForm((current) => ({ ...current, supply_id: supplyId }));
+    setSelectedOutboundProduct(null);
+    setStockError("");
+    const requestId = ++stockRequestId.current;
+    if (!supplyId) {
+      setStockLoading(false);
+      return;
+    }
+    setStockLoading(true);
+    try {
+      const freshProduct = await getInventoryProduct(Number(supplyId));
+      if (requestId === stockRequestId.current) setSelectedOutboundProduct(freshProduct);
+    } catch (cause) {
+      if (requestId === stockRequestId.current) {
+        setStockError(cause instanceof ApiRequestError ? cause.message : "Unable to refresh this supply's available stock. Try again.");
+      }
+    } finally {
+      if (requestId === stockRequestId.current) setStockLoading(false);
+    }
+  }, []);
 
   const loadInventory = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [productResponse, orderResponse] = await Promise.all([
-        authFetch("/inventory/products"),
-        authFetch("/inventory/orders"),
-      ]);
-      const [nextProducts, nextOrders] = await Promise.all([
-        readApiResponse<InventoryProduct[]>(productResponse, "Unable to load inventory. Check your connection and try again."),
-        readApiResponse<InventoryOrder[]>(orderResponse, "Unable to load inventory history. Check your connection and try again."),
-      ]);
+      const [nextProducts, nextOrders] = await Promise.all([getInventoryProducts(), getInventoryOrders()]);
       setProducts(nextProducts);
       setOrders(nextOrders);
     } catch (cause) {
@@ -56,16 +90,6 @@ export default function InventoryPage() {
     const timer = window.setTimeout(() => void loadInventory(), 0);
     return () => window.clearTimeout(timer);
   }, [loadInventory]);
-
-  async function submit<T>(path: string, body: unknown, fallback: string): Promise<T> {
-    const response = await authFetch(path, { method: "POST", body: JSON.stringify(body) });
-    try {
-      return await readApiResponse<T>(response, fallback);
-    } catch (cause) {
-      if (cause instanceof ApiRequestError) throw cause;
-      throw new ApiRequestError(fallback);
-    }
-  }
 
   async function runAction(
     action: () => Promise<void>,
@@ -94,10 +118,8 @@ export default function InventoryPage() {
     }
     setProductFormError("");
     await runAction(async () => {
-      await submit<InventoryProduct>(
-        "/inventory/products",
+      await createInventoryProduct(
         { ...productForm, name, sku },
-        "Unable to register the supply. Check the details and try again.",
       );
       setProductForm(emptyProductForm);
     }, "Unable to register the supply. Check the details and try again.", setProductFormError);
@@ -106,10 +128,10 @@ export default function InventoryPage() {
   async function receiveDelivery(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runAction(async () => {
-      await submit("/inventory/orders/inbound", {
+      await createInventoryInboundOrder({
         supply_id: Number(inboundForm.supply_id), quantity: Number(inboundForm.quantity),
         vendor_name: inboundForm.vendor_name.trim(), clinic_id: Number(inboundForm.clinic_id),
-      }, "Unable to record the delivery. Check the details and try again.");
+      });
       setInboundForm(emptyInboundForm);
     }, "Unable to record the delivery. Check the details and try again.");
   }
@@ -117,10 +139,10 @@ export default function InventoryPage() {
   async function recordConsumption(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runAction(async () => {
-      await submit("/inventory/orders/outbound", {
+      await createInventoryOutboundOrder({
         supply_id: Number(outboundForm.supply_id), quantity: Number(outboundForm.quantity),
-        consumption_type: outboundForm.consumption_type, clinic_id: Number(outboundForm.clinic_id),
-      }, "Unable to record the consumption. Check the details and try again.");
+        consumption_type: outboundForm.consumption_type as "clinical_use" | "expiry_waste", clinic_id: Number(outboundForm.clinic_id),
+      });
       setOutboundForm(emptyOutboundForm);
     }, "Unable to record the consumption. Check the details and try again.");
   }
@@ -168,12 +190,15 @@ export default function InventoryPage() {
 
           <section className="panel inventory-form-panel" aria-labelledby="consumption-form-title"><div className="panel-heading"><div><p className="eyebrow">Outbound order</p><h2 id="consumption-form-title">Record a consumption</h2></div></div>
             <form className="supplier-form inventory-form" onSubmit={recordConsumption}>
-              <label>Supply<select required value={outboundForm.supply_id} onChange={(event) => setOutboundForm({ ...outboundForm, supply_id: event.target.value })}><option value="">Choose supply</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.sku}</option>)}</select></label>
+              <label>Supply<select required value={outboundForm.supply_id} onChange={(event) => void selectOutboundSupply(event.target.value)}><option value="">Choose supply</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.sku}</option>)}</select></label>
+              {stockLoading && <p className="inventory-available" role="status">Refreshing selected supply stock…</p>}
+              {stockError && <p className="inventory-error" role="alert">{stockError}<button type="button" className="supplier-small-button" onClick={() => void selectOutboundSupply(outboundForm.supply_id)}>Refresh stock</button></p>}
               {selectedOutboundProduct && <p className="inventory-available" role="status">Available before submission: <strong>{selectedOutboundProduct.current_stock}</strong> {pluralUnit(selectedOutboundProduct.unit, selectedOutboundProduct.current_stock)}</p>}
-              <label>Quantity<input required type="number" min="1" step="1" max={selectedOutboundProduct?.current_stock} value={outboundForm.quantity} onChange={(event) => setOutboundForm({ ...outboundForm, quantity: event.target.value })} /></label>
+              <label>Quantity<input required type="number" min="1" step="1" max={selectedOutboundProduct?.current_stock} value={outboundForm.quantity} aria-invalid={exceedsAvailableStock} onChange={(event) => setOutboundForm({ ...outboundForm, quantity: event.target.value })} /></label>
+              {exceedsAvailableStock && <p className="inventory-error" role="alert">Requested quantity ({requestedQuantity}) exceeds the available stock ({selectedOutboundProduct?.current_stock}). Reduce the quantity before recording this consumption.</p>}
               <label>Consumption type<select value={outboundForm.consumption_type} onChange={(event) => setOutboundForm({ ...outboundForm, consumption_type: event.target.value as typeof outboundForm.consumption_type })}><option value="clinical_use">Clinical use</option><option value="expiry_waste">Expiry waste</option></select></label>
               <label>Clinic ID<select value={outboundForm.clinic_id} onChange={(event) => setOutboundForm({ ...outboundForm, clinic_id: event.target.value })}>{Array.from({ length: 12 }, (_, index) => index + 1).map((id) => <option key={id} value={id}>{id}</option>)}</select></label>
-              <button className="button supplier-submit" type="submit" disabled={saving || products.length === 0 || (selectedOutboundProduct?.current_stock ?? 0) < 1}>Record consumption <span aria-hidden="true">→</span></button>
+              <button className="button supplier-submit" type="submit" disabled={saving || products.length === 0 || stockLoading || !selectedOutboundProduct || selectedOutboundProduct.current_stock < 1 || exceedsAvailableStock}>Record consumption <span aria-hidden="true">→</span></button>
             </form>
           </section>
         </div>
