@@ -7,6 +7,7 @@ from threading import RLock
 from typing import Any
 
 from dotenv import load_dotenv
+from sqlalchemy.engine import make_url
 from sqlmodel import Session, create_engine
 from tinydb import Query, TinyDB
 
@@ -50,6 +51,17 @@ def get_inventory_engine():
             "DATABASE_URL must be configured before using the inventory database; "
             "use an isolated local/test PostgreSQL database."
         )
+    # The project declares psycopg2-binary, not psycopg (v3). SQLAlchemy's bare
+    # ``postgresql://`` URL defaults to psycopg and otherwise fails at request
+    # time with ModuleNotFoundError. Normalize the default driver explicitly,
+    # matching migrations/env.py, while preserving any explicit driver choice.
+    parsed_url = make_url(database_url)
+    if (
+        parsed_url.get_backend_name() == "postgresql"
+        and parsed_url.drivername == "postgresql"
+    ):
+        parsed_url = parsed_url.set(drivername="postgresql+psycopg2")
+        database_url = parsed_url.render_as_string(hide_password=False)
     return _inventory_engine(database_url)
 
 

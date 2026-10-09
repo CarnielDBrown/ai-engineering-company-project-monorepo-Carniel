@@ -1,6 +1,7 @@
 "use client";
 
 export const TOKEN_KEY = "healthcore_access_token";
+const INSUFFICIENT_STOCK_DETAIL = /^Insufficient stock for supply '([^'\r\n]{1,100})'\. Available: (\d+), requested: (\d+)\.$/;
 
 type ApiErrorPayload = { detail?: unknown };
 
@@ -22,6 +23,7 @@ const SAFE_API_MESSAGES = new Set([
   "Only admins may change account status",
   "Password changes must use the password recovery flow",
   "Profile not found",
+  "A medical supply with this SKU already exists",
   "No successful incident analysis is available to export.",
   "The file is empty. Upload a CSV with a header row and at least one record.",
   "The file has no header row.",
@@ -47,7 +49,13 @@ export function apiError(payload: unknown, fallback = "The API request failed.")
   if (payload && typeof payload === "object" && "detail" in payload) {
     const detail = (payload as ApiErrorPayload).detail;
     if (Array.isArray(detail)) return "Please check the information and try again.";
-    if (typeof detail === "string" && SAFE_API_MESSAGES.has(detail)) return detail;
+    if (typeof detail === "string") {
+      if (SAFE_API_MESSAGES.has(detail)) return detail;
+      const insufficientStock = detail.match(INSUFFICIENT_STOCK_DETAIL);
+      if (insufficientStock) {
+        return `Insufficient stock for ${insufficientStock[1]}. Available: ${insufficientStock[2]}, requested: ${insufficientStock[3]}.`;
+      }
+    }
   }
   return fallback;
 }
