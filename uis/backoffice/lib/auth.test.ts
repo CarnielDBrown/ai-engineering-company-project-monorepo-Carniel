@@ -3,6 +3,7 @@ import {
   ApiRequestError,
   TOKEN_KEY,
   apiError,
+  authFetch,
   clearToken,
   getToken,
   readApiResponse,
@@ -32,6 +33,22 @@ describe("auth token storage", () => {
 
     clearToken();
     expect(getToken()).toBeNull();
+  });
+});
+
+describe("authenticated API requests", () => {
+  it("uses the same-origin API proxy and attaches the bearer token", async () => {
+    saveToken("test-access-token");
+    const fetchMock = vi.fn().mockResolvedValue(new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await authFetch("/inventory/products");
+
+    const [requestUrl, requestOptions] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(requestOptions.headers);
+    expect(requestUrl).toBe("/api/inventory/products");
+    expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+    expect(headers.get("Content-Type")).toBe("application/json");
   });
 });
 

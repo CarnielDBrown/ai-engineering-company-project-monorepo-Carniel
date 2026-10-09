@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Deliver authentication for HealthCore's internal applications in five ordered, independently verifiable phases. This document is the cross-project roadmap; implementation details and task checklists belong in a phase plan created immediately before that phase starts.
+Deliver HealthCore's internal application and inventory work in ordered, independently verifiable phases. This document is the cross-project roadmap; implementation details and task checklists belong in a phase plan created immediately before that phase starts.
 
 ## Scope and guardrails
 
@@ -63,6 +63,26 @@ Create and execute a documented test plan for the authentication API, covering h
 
 **Exit gate:** A root-level `TESTING.md` records planned cases, suite coverage, run commands, and results; the required API and applicable TypeScript tests pass; and authentication-module coverage is at least 70% using the syllabus-prescribed coverage run. Snapshot this phase separately after reviewing the staged paths and results.
 
+### Phase 6 — Backend inventory development
+
+**Source specification:** [ai-eng-milestone-backend-development](https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/main/content/projects/ai-eng-milestone-backend-development/README.md)
+
+Extend the existing centralized FastAPI service with a dedicated `/inventory` API. Retain TinyDB for authentication and user lookup, and use SQLModel with Supabase PostgreSQL for inventory and order data. Define HealthCore-specific product, inbound-order, and outbound-order entities and separate request/response schemas using the authoritative backend company context. Compute stock from order history instead of storing an editable quantity, enforce product foreign keys and authenticated access, reject outbound orders that exceed available stock, and seed only the context-specified records. Avoid N+1 order/product reads.
+
+**Dependency:** Phase 5, including its reviewed phase snapshot. The prior authentication API and its TinyDB user UUID contract must remain intact.
+
+**Exit gate:** All required `/inventory` routes are functional and covered for success, validation, authorization, missing product, and insufficient stock; both database connections are configured and used for their intended domains; ORM relationships enforce product foreign keys; computed stock is verified against orders and cannot be set directly; context seed data is documented; and database-dependent checks run against a test/local instance without exposing real credentials. Snapshot this backend phase separately before starting phase 7.
+
+### Phase 7 — Inventory management backoffice
+
+**Source specification:** [ai-eng-inventory-management-backoffice](https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/main/content/projects/ai-eng-inventory-management-backoffice/README.md)
+
+Add authenticated inventory views to the existing `uis/backoffice` application: a product/stock list with low-stock visual cues, inbound and outbound order forms, and a read-only order history showing product and creator. The outbound form must display current available stock before submission. Consume live Phase 6 API data through the existing secure server-side backoffice/API integration and show actionable API failures without leaking sensitive details.
+
+**Dependency:** Phase 6, including its reviewed backend snapshot and documented API contract.
+
+**Exit gate:** The four inventory views operate against the live inventory API; unauthenticated access redirects to login; outbound stock is shown before submit and API rejection/errors are handled; relevant frontend tests, lint, and build pass. Snapshot this phase separately after reviewing staged paths and results.
+
 ## Delivery protocol
 
 1. Keep this saga at roadmap level; do not pre-write detailed plans for phases that have not started.
@@ -78,4 +98,6 @@ Create and execute a documented test plan for the authentication API, covering h
 - Phase 3 — Password recovery and change: implemented and snapshotted on the pushed branch `feature/auth-recovery` at `2af5061`; API suite (**22 passed**), backoffice lint/build, and editor diagnostics passed. Real Resend delivery remains unverified without user-supplied provider configuration; see `services/api/PASSWORD_RECOVERY_PLAN.md`.
 - Phase 4 — Error handling: implemented, validated, and snapshotted in pushed commit `6a8eef0` on `feature/auth-recovery`; see `services/api/ERROR_HANDLING_PLAN.md` for checks and the pandas runtime limitation.
 - Phase 5 — Building bullet-proof applications: started from the verified Phase 4 snapshot on `feature/bullet-proof-tests`; see `services/api/PHASE_5_TESTING_PLAN.md` for the active plan.
+- Phase 6 — Backend inventory development: implementation and local validation were snapshotted at `db00690` on `feature/bullet-proof-tests`; see `services/api/PHASE_6_INVENTORY_BACKEND_PLAN.md`. Shared Supabase schema/revision presence was later observed read-only, but this does not establish deployment approval or release governance. The `.env.example` database placeholder and release-operations details remain open.
+- Phase 7 — Inventory management backoffice: in progress on `feature/inventory-backoffice`, based on the Phase 6 snapshot; see `services/api/PHASE_7_INVENTORY_BACKOFFICE_PLAN.md`. Page and auth-request tests have been added; tests, lint, and build pass. A browser-driven live API/auth-redirect run remains outstanding, so the Phase 7 exit gate is not yet claimed as passed.
 - The worktree contains unrelated changes and generated/local artifacts. Preserve them and stage only explicitly reviewed phase-owned files.

@@ -34,6 +34,10 @@ export function Sidebar() {
             <span className="nav-icon" aria-hidden="true">▦</span>
             Supplier directory
           </Link>
+          <Link href="/inventory" className="incident-nav-link">
+            <span className="nav-icon" aria-hidden="true">▤</span>
+            Medical inventory
+          </Link>
         </nav>
       </div>
       {workspaceNav.map((section) => (
