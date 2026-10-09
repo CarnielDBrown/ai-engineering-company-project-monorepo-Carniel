@@ -25,6 +25,20 @@ def test_forgot_password_always_returns_same_confirmation(client, monkeypatch):
     assert token not in str(database.get_database().table(database.PASSWORD_RESET_TOKENS_TABLE).all())
 
 
+def test_forgot_password_does_not_create_token_for_inactive_user(client, monkeypatch):
+    user = register(client)
+    database.update_user(user["id"], {"is_active": False})
+    sent = []
+    monkeypatch.setattr("routes.auth.send_reset_email", lambda email, token: sent.append(token))
+
+    response = client.post("/auth/forgot-password", json={"email": "user@example.com"})
+
+    assert response.status_code == 200
+    assert response.json() == {"message": "If that address is registered, you'll receive a link shortly."}
+    assert sent == []
+    assert database.get_database().table(database.PASSWORD_RESET_TOKENS_TABLE).all() == []
+
+
 def test_provider_failure_does_not_enumerate_or_leave_live_token(client, monkeypatch):
     register(client)
 
@@ -82,6 +96,25 @@ def test_change_password_requires_auth_and_checks_current_password(client):
     changed = client.post("/auth/change-password", headers=headers, json=payload)
     assert changed.status_code == 200
     assert client.post("/auth/login", json={"email": "user@example.com", "password": "New-Password-123"}).status_code == 200
+
+
+def test_password_endpoints_reject_invalid_request_payloads(client):
+    assert client.post("/auth/forgot-password", json={"email": "not-an-email"}).status_code == 422
+    assert client.post("/auth/forgot-password", json={"email": "user@example.com", "extra": True}).status_code == 422
+    assert client.post("/auth/reset-password", json={"token": "short", "new_password": "New-Password-123"}).status_code == 422
+    assert client.post("/auth/reset-password", json={"token": "x" * 48, "new_password": "short"}).status_code == 422
+    assert client.post(
+        "/auth/change-password", json={"current_password": "old", "new_password": "New-Password-123"}
+    ).status_code == 401
+
+    register(client)
+    headers = auth_headers(login(client))
+    assert client.post("/auth/change-password", headers=headers, json={}).status_code == 422
+    assert client.post(
+        "/auth/change-password",
+        headers=headers,
+        json={"current_password": "Correct-Horse-42", "new_password": "short"},
+    ).status_code == 422
 
 
 def test_password_change_invalidates_reset_token(client, monkeypatch):
