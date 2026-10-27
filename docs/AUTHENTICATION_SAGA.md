@@ -83,6 +83,18 @@ Add authenticated inventory views to the existing `uis/backoffice` application: 
 
 **Exit gate:** The four inventory views operate against the live inventory API; unauthenticated access redirects to login; outbound stock is shown before submit and API rejection/errors are handled; relevant frontend tests, lint, and build pass. Snapshot this phase separately after reviewing staged paths and results.
 
+### Phase 8 — Centralized incident manager
+
+**Source specification:** [Centralized Incident Manager — HealthCore briefing](https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/main/content/contexts/centralized-incident-manager/healthcore-BRIEFING.en.md)
+
+Extend the centralized FastAPI service and authenticated backoffice with a persistent incident register, lifecycle transitions, category/branch/date filters, aggregate summaries, and an idempotent legacy CSV import. Reuse the incidents-analysis package's validation rules and the briefing's exact status, category, branch, and field mappings. Never store patient names, dates of birth, medical record numbers, contact details, patient IDs, or source CSV incident IDs; keep free-text PHI warnings prominent and do not log submitted incident text. Add an additive Alembic migration and do not run migrations or import legacy data during API startup.
+
+**Dependency:** Phase 7, including its reviewed phase snapshot. Preserve the existing incident CSV analysis endpoints and the Phase 6 inventory schema/data.
+
+**Exit gate:** Authenticated create/list/detail/lifecycle/filter/summary flows pass API and UI tests; only the four specified status transitions are accepted; resolution requires documented corrective action; summaries match the briefing's post-transformation status, category, and branch totals after importing the provided anonymized CSV; repeat imports add no duplicates; invalid rows are reported without exposing record values; PHI warning and English labels are verified; migration upgrade/downgrade behavior is documented and exercised on an isolated database; backoffice tests, lint, build, API tests, and diff checks pass. No production/shared database migration or import is performed by this phase.
+
+**Not specified:** HealthCore's criteria for designating an incident critical and its authorization policy for incident creation, updates, or critical designation. Phase 8 uses an explicit staff-entered critical flag for the executive aggregate; the company must define and approve classification criteria before operational use.
+
 ## Delivery protocol
 
 1. Keep this saga at roadmap level; do not pre-write detailed plans for phases that have not started.
@@ -100,4 +112,5 @@ Add authenticated inventory views to the existing `uis/backoffice` application: 
 - Phase 5 — Building bullet-proof applications: started from the verified Phase 4 snapshot on `feature/bullet-proof-tests`; see `services/api/PHASE_5_TESTING_PLAN.md` for the active plan.
 - Phase 6 — Backend inventory development: implementation and local validation were snapshotted at `db00690` on `feature/bullet-proof-tests`; see `services/api/PHASE_6_INVENTORY_BACKEND_PLAN.md`. Shared Supabase schema/revision presence was later observed read-only, but this does not establish deployment approval or release governance. The `.env.example` database placeholder and release-operations details remain open.
 - Phase 7 — Inventory management backoffice: implemented and complete on `feature/inventory-backoffice`, based on the Phase 6 snapshot; see `services/api/PHASE_7_INVENTORY_BACKOFFICE_PLAN.md`. Page and auth-request tests pass (14 tests), as do lint and production build. The user confirmed live browser/API/auth-flow verification. The current session did not independently repeat a successful browser login or inventory write; no shared/production data was written. Phase 6's documented production release-governance and `.env.example` limitations remain open and are not cleared by this Phase 7 completion.
+- Phase 8 — Centralized incident manager: implemented and locally validated on `feature/incident-manager`; see [`services/api/PHASE_8_INCIDENT_MANAGER_PLAN.md`](../services/api/PHASE_8_INCIDENT_MANAGER_PLAN.md) for API, backoffice, CSV, and disposable-PostgreSQL evidence. No production database access or CSV import was performed.
 - The worktree contains unrelated changes and generated/local artifacts. Preserve them and stage only explicitly reviewed phase-owned files.

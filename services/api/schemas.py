@@ -79,3 +79,90 @@ class InventoryOrderResponse(BaseModel):
     user_uuid: str
     vendor_name: str | None = None
     consumption_type: ConsumptionType | None = None
+
+
+IncidentCategory = Literal[
+    "clinical_equipment",
+    "it_system",
+    "billing_error",
+    "compliance_breach",
+    "patient_experience",
+    "staff_issue",
+    "facility_issue",
+    "referral_issue",
+    "other",
+]
+IncidentStatus = Literal["open", "in_progress", "resolved", "discarded"]
+IncidentOrigin = Literal["customer", "branch", "internal"]
+IncidentBranch = Literal[
+    "central",
+    "austin_north",
+    "dallas_uptown",
+    "houston_med_center",
+    "san_antonio_west",
+    "miami_brickell",
+    "miami_doral",
+    "orlando_east",
+    "tampa_bay",
+    "atlanta_midtown",
+    "savannah",
+    "london_city",
+    "london_west",
+    "manchester_central",
+]
+
+
+class ManagedIncidentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1)
+    category: IncidentCategory
+    branch: IncidentBranch
+    origin: IncidentOrigin
+    is_critical: bool = False
+
+
+class IncidentStatusUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: IncidentStatus
+    corrective_action: str | None = Field(default=None, min_length=1)
+
+
+class IncidentAuditResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: Literal["created", "legacy_import", "status_transition"]
+    from_status: IncidentStatus | None
+    to_status: IncidentStatus
+    actor_uuid: str | None
+    created_at: datetime
+
+
+class ManagedIncidentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+    category: IncidentCategory
+    branch: IncidentBranch
+    status: IncidentStatus
+    origin: IncidentOrigin
+    is_critical: bool
+    corrective_action: str | None
+    created_at: datetime
+    updated_at: datetime
+    created_by_uuid: str | None
+    updated_by_uuid: str | None
+    audit_events: list[IncidentAuditResponse] = []
+
+
+class IncidentSummaryResponse(BaseModel):
+    total: int
+    by_status: dict[IncidentStatus, int]
+    by_category: dict[IncidentCategory, int]
+    by_branch: dict[IncidentBranch, int]
+    critical_open_by_country: dict[Literal["US", "UK"], int]

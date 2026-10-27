@@ -126,6 +126,41 @@ class SupplyConsumption(SQLModel, table=True):
     supply: "MedicalSupply" = Relationship(back_populates="consumptions")
 
 
+class ManagedIncident(SQLModel, table=True):
+    """Operational incident record without patient-identifying fields."""
+
+    __tablename__ = "managed_incidents"
+
+    id: int | None = SQLField(default=None, primary_key=True)
+    title: str = SQLField(max_length=120, index=True)
+    description: str
+    category: str = SQLField(index=True)
+    branch: str = SQLField(index=True)
+    status: str = SQLField(default="open", index=True)
+    origin: str = SQLField(index=True)
+    is_critical: bool = SQLField(default=False, index=True)
+    corrective_action: str | None = None
+    created_at: datetime = SQLField(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    updated_at: datetime = SQLField(default_factory=lambda: datetime.now(timezone.utc))
+    created_by_uuid: str | None = None
+    updated_by_uuid: str | None = None
+    source_key: str | None = SQLField(default=None, unique=True, index=True)
+
+
+class IncidentAuditEvent(SQLModel, table=True):
+    """Append-only lifecycle metadata; deliberately excludes free-text fields."""
+
+    __tablename__ = "incident_audit_events"
+
+    id: int | None = SQLField(default=None, primary_key=True)
+    incident_id: int = SQLField(foreign_key="managed_incidents.id", index=True)
+    action: str
+    from_status: str | None = None
+    to_status: str
+    actor_uuid: str | None = None
+    created_at: datetime = SQLField(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+
 def utc_now() -> datetime:
     """Return a timezone-aware UTC timestamp for system-managed updates."""
     return datetime.now(timezone.utc)

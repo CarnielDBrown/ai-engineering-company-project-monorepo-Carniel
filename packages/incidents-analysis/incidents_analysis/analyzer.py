@@ -112,8 +112,8 @@ def _clean(row: Mapping[str, Any], column: str) -> str:
     return str(value).strip()
 
 
-def _validate(row: Mapping[str, Any]) -> list[str]:
-    """Return the keys of every rule the row breaks, in reporting order."""
+def validate_row(row: Mapping[str, Any]) -> list[str]:
+    """Return the keys of every rule a row breaks, in reporting order."""
     broken: list[str] = []
 
     clinic_id = _clean(row, "clinic_id")
@@ -179,7 +179,7 @@ def analyze_rows(rows: Iterable[Mapping[str, Any]], source_name: str = "incident
 
     for row in rows:
         total += 1
-        broken = _validate(row)
+        broken = validate_row(row)
         if broken:
             invalid += 1
             rule_counts.update(broken)

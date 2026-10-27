@@ -1,6 +1,6 @@
 """Reusable HealthCore incident CSV analysis."""
 
-from .analyzer import AnalysisResult, analyze_bytes, analyze_file, analyze_rows, analyze_text
+from .analyzer import AnalysisResult, analyze_bytes, analyze_file, analyze_rows, analyze_text, validate_row
 from .errors import EmptyFileError, IncidentFileError, InvalidFormatError
 
 __all__ = [
@@ -12,4 +12,5 @@ __all__ = [
     "analyze_file",
     "analyze_rows",
     "analyze_text",
+    "validate_row",
 ]

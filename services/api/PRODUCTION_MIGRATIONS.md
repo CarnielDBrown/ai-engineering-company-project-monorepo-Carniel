@@ -1,10 +1,10 @@
 # API database migration policy
 
-**Status:** Adopted for future inventory-schema changes. Alembic tooling and a clean-install initial inventory revision are configured and verified against a disposable local PostgreSQL 16 database. This policy and test do not authorize any change to the currently configured shared Supabase database.
+**Status:** Adopted for future SQLModel/PostgreSQL schema changes. Alembic tooling and the clean-install inventory revision were verified against a disposable local PostgreSQL 16 database. On 2026-10-26, the additive incident-manager revision was applied from the prior inventory revision on a disposable local PostgreSQL 16 database; a synthetic inventory row survived, both new tables existed, and `alembic check` reported no metadata drift. This does not authorize changes to the currently configured shared Supabase database.
 
 ## Decision
 
-Use **Alembic** as the sole production schema migration mechanism for the SQLModel/PostgreSQL inventory database. SQLModel metadata describes the current ORM shape, but `SQLModel.metadata.create_all()` is prohibited in deployed environments and must not run during API startup. It remains acceptable only inside isolated automated tests and explicitly disposable local development databases.
+Use **Alembic** as the sole production schema migration mechanism for the centralized SQLModel/PostgreSQL database, including inventory and incident-manager tables. SQLModel metadata describes the current ORM shape, but `SQLModel.metadata.create_all()` is prohibited in deployed environments and must not run during API startup. It remains acceptable only inside isolated automated tests and explicitly disposable local development databases.
 
 The API process must never apply migrations implicitly. Once Alembic is configured, migrations are an explicit, separately invoked deployment/release step (normally `alembic upgrade head` using a one-shot migration job). Do not add an Alembic revision or execute a migration against an existing/shared database until its current schema has been inspected and reconciled with the proposed initial revision.
 
@@ -26,6 +26,8 @@ The repository does not define the production hosting/release platform, database
 
 - Alembic is declared and locked; `alembic.ini` contains no database credentials, and `migrations/env.py` requires an explicit PostgreSQL `DATABASE_URL` and imports SQLModel metadata.
 - `migrations/versions/0001_initial_inventory.py` is a manually reviewed clean-install revision. It creates only the three inventory tables; it is not an adoption/baseline revision for an existing database.
+- `migrations/versions/0002_incident_manager.py` adds the manager and audit tables without modifying inventory data. Its presence does not establish approval or application to any shared database; follow the same target inspection, PostgreSQL testing, and release gates as every schema revision.
+- `migrations/versions/0002_incident_manager.py` adds the manager and audit tables without modifying inventory data. Its presence does not establish approval or application to any shared database; follow the same target inspection, PostgreSQL testing, and release gates as every schema revision. The Phase 8 PostgreSQL validation used a temporary local container, which was removed after testing.
 - The initial revision was applied and compared against ORM metadata (`alembic check` reported no drift) on a disposable loopback-only PostgreSQL 16 database. The initial revision intentionally refuses downgrade because it would delete inventory data. The temporary database was removed after validation.
 - Before using the revision against an existing target, inspect that target's schema/data and decide whether it needs a reviewed baseline/adoption procedure. Do not assume it is empty.
 - Establish environment-specific backup, recovery, access, and release-owner procedures before production use.

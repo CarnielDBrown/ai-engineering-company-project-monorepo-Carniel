@@ -18,6 +18,8 @@ The `/operations` route implements the Milestone 2 programming-fundamentals exam
 
 The `/suppliers` route implements the HealthCore supplier directory, including the seeded supplier registry, country/category filters, supplier registration, rate updates, and activation/suspension controls. It runs in this backoffice app on port 3002 and calls the centralized API through same-origin rewrites; no separate supplier frontend server is required.
 
+The `/incident-manager` route provides the authenticated incident register, lifecycle controls, category/branch/status/date filters, country-level critical-open totals, and audit history through the centralized API. Its free-text description field displays the required patient-data warning. Keep patient-identifying fields out of the API contract and all incident text out of logs; criticality rules remain **Not specified** by HealthCore.
+
 ## Continuous integration
 
 `.github/workflows/backoffice-ci.yml` runs for pushes and pull requests that change `uis/backoffice/**` (and can be started manually). It installs the app's locked dependencies with `npm ci`, then runs `npm run lint` and `npm run build`. The same checks should pass locally before committing backoffice changes.

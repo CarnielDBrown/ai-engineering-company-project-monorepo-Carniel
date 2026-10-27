@@ -72,9 +72,10 @@ def get_db():
 
 
 def get_database() -> TinyDB:
-    """Open the local persistent database, creating its directory if needed."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return TinyDB(DATABASE_PATH)
+    """Open TinyDB at TINYDB_PATH or the default local path."""
+    path = Path(os.getenv("TINYDB_PATH", str(DATABASE_PATH))).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return TinyDB(path)
 
 
 def list_suppliers(*, country: str | None = None, category: str | None = None) -> list[dict[str, Any]]:

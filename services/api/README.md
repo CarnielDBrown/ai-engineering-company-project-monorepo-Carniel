@@ -17,6 +17,8 @@ uv run uvicorn main:app --reload
 
 Authentication requires `SECRET_KEY` and accepts `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 30). Generate a strong signing key for local use, for example with `openssl rand -hex 32`; never use a sample/test value in a deployed environment. The API intentionally has no built-in signing-key fallback.
 
+TinyDB stores local accounts and profiles at `services/api/data/suppliers.json` by default. To preserve local accounts outside the checkout, set `TINYDB_PATH` to a private, persistent file path before starting the API (for example, `$HOME/.local/share/healthcore/healthcore.json`). Treat this file as sensitive and do not commit or share it. The setting affects TinyDB only; it does not change `DATABASE_URL` or migrate database contents.
+
 Public registration is `POST /users` with `email`, `password`, `name`, and optional `phone`/`address`. New accounts receive the `user` role; registration cannot set role or account status. Log in with `POST /auth/login`, then send `Authorization: Bearer <access_token>` to protected endpoints. User listing and role/account-status changes require an admin; users may access their own user record, credentials, and `/profiles/me`, while cross-user access is forbidden unless the caller is an admin.
 
 All supplier operations and both incident-analysis operations require bearer authentication. The public `uis/website` must not rely on these internal authenticated endpoints. The interactive API documentation is available at `/docs` while the server is running.
@@ -29,7 +31,7 @@ On API startup, the idempotent seeder inserts any missing context suppliers, so 
 
 Configure `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and optionally `BACKOFFICE_URL` (defaults to `http://localhost:3002`) in the API process environment or its ignored `.env` file. Resend requires an allowed/verified sender according to the account's current sending policy. Never commit credentials. The API responds generically on email-provider failures and does not log reset links or tokens; a failed delivery invalidates that reset token. Local automated tests mock delivery. To verify actual delivery, configure the Resend variables, register an account at an address that can receive mail, request a reset from the backoffice, follow the emailed link within 30 minutes, and sign in with the new password. Reset tokens are stored in a dedicated TinyDB table in the local JSON database; use a transactional/concurrency-safe database for multi-worker production deployment.
 
-The service layout keeps the FastAPI entry point (`main.py`), supplier models (`models.py`), auth request/response models (`models_auth.py`), and database module (`database.py`) at the service root. Endpoint modules and the initial-data loader (`routes/seed.py`) are under `routes/`. Add all future initial-data loading to `routes/seed.py`.
+The service layout keeps the FastAPI entry point (`main.py`), SQLModel tables and supplier schemas (`models.py`), auth request/response models (`models_auth.py`), and database module (`database.py`) at the service root. Endpoint modules and seed commands are under `routes/`; keep domain-specific, explicit imports in their owning modules (for example, `routes/seed_incidents.py`) rather than coupling them to the supplier seeder.
 
 ### Inventory database (local/test only until configured)
 
@@ -42,3 +44,23 @@ After local schema setup, create an active TinyDB user and explicitly run `uv ru
 The `/inventory` API exposes authenticated product list/create/detail, inbound and outbound movements, and combined movement history. Stock is derived from deliveries minus consumptions. Outbound requests lock the matching supply row within a transaction on PostgreSQL to serialize availability checks. Inventory route tests use an isolated in-memory SQLite override. The opt-in PostgreSQL integration test in `tests/test_inventory_postgres.py` passed against a disposable local PostgreSQL 16 container on 2026-10-09; it confirmed that only one of two competing consumption requests could spend the available stock. This is focused concurrency evidence, not production migration or deployment validation.
 
 The backoffice uses a same-origin proxy. Set `API_SERVER_URL` for the backoffice server if the API is not reachable at `http://127.0.0.1:8000` from that server.
+
+### Incident manager (local/test only until approved)
+
+The authenticated incident manager is available under `/api/incident-manager`. It uses the configured inventory PostgreSQL database and keeps incident text out of TinyDB, logs, and the legacy aggregate-analysis responses. Apply schema changes only to an isolated local/test database with the explicit Alembic command:
+
+```sh
+uv run alembic upgrade head
+```
+
+Revision `0002_incident_manager` is additive after the inventory revision. Do not use SQLModel `create_all()` or apply this migration to a shared/production database without a reviewed migration plan and approval. The existing initial inventory revision is not a baseline/adoption migration for an existing database.
+
+Import the anonymized historical CSV only when explicitly requested, after the target database is confirmed isolated:
+
+```sh
+INCIDENT_IMPORT_KEY="<stable random key>" uv run seed-incidents /path/to/anonymized-incidents.csv
+```
+
+Keep `INCIDENT_IMPORT_KEY` (at least 32 characters) outside source control and stable for every rerun against the same imported data; it HMACs the source incident ID so the raw ID is not stored. A changed key will not match earlier imports. The command reuses the shared analyzer's CSV validation and requires the briefing's exact 100-row sample totals and branch distribution before writing. It reports inserted, duplicate, and invalid counts plus invalid rule counts only; it never prints row values. A mismatched CSV is rejected before the transaction. It is not run during API startup. Historical closed rows map to `resolved`; the source CSV does not specify their corrective actions.
+
+The incident create form prominently warns staff not to enter patient-identifying data. No patient name, date of birth, medical record number, contact detail, or patient ID is modeled. The manager's critical flag is an explicit staff classification because HealthCore's criticality criteria are not specified; define and approve that policy before relying on the country summary operationally.
