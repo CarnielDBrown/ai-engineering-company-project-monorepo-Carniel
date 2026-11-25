@@ -36,6 +36,14 @@ const nextConfig: NextConfig = {
         destination: `${apiServerUrl}/suppliers/:path*`,
       },
       {
+        source: "/api/inventory",
+        destination: `${apiServerUrl}/inventory`,
+      },
+      {
+        source: "/api/inventory/:path*",
+        destination: `${apiServerUrl}/inventory/:path*`,
+      },
+      {
         source: "/api/:path*",
         destination: `${apiServerUrl}/api/:path*`,
       },

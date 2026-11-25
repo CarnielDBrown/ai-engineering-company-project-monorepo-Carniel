@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import auth_router, incidents_router, profiles_router, suppliers_router, users_router
+from routes import auth_router, incidents_router, inventory_router, profiles_router, suppliers_router, users_router
 from routes.seed import seed_suppliers
 
 
@@ -25,6 +25,7 @@ app.add_middleware(
 	allow_headers=["*"],
 )
 app.include_router(incidents_router)
+app.include_router(inventory_router)
 app.include_router(suppliers_router)
 app.include_router(auth_router)
 app.include_router(users_router)

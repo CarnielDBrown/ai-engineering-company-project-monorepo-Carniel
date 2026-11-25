@@ -26,9 +26,19 @@ def test_registration_login_and_me_exposes_linked_profile_only(client):
 
 
 def test_auth_required_for_business_routes_and_invalid_tokens(client):
-    for path in ("/suppliers", "/api/incidents/results/export", "/users", "/profiles/me", "/auth/me"):
+    for path in (
+        "/suppliers",
+        "/api/incidents/results/export",
+        "/users",
+        "/profiles/me",
+        "/auth/me",
+    ):
         response = client.get(path)
         assert response.status_code == 401, (path, response.text)
+
+    change_payload = {"current_password": "Correct-Horse-42", "new_password": "New-Password-123"}
+    assert client.post("/auth/change-password", json=change_payload).status_code == 401
+    assert client.put("/profiles/me", json={"name": "Unauthenticated"}).status_code == 401
 
     register(client)
     expired = jwt.encode(
@@ -81,7 +91,58 @@ def test_registration_rejects_duplicates_privilege_fields_and_invalid_roles(clie
 def test_registration_allows_missing_optional_profile_fields(client):
     response = client.post("/users", json={"email": "no-profile@example.com", "password": "Correct-Horse-42"})
     assert response.status_code == 201, response.text
-    assert client.post("/auth/login", json={"email": "no-profile@example.com", "password": "Correct-Horse-42"}).status_code == 200
+    token = client.post("/auth/login", json={"email": "no-profile@example.com", "password": "Correct-Horse-42"}).json()["access_token"]
+    headers = auth_headers(token)
+    assert client.get("/auth/me", headers=headers).json()["profile"] is None
+    assert client.get("/profiles/me", headers=headers).status_code == 404
+
+
+def test_auth_me_rejects_missing_expired_wrong_signature_and_unknown_user_tokens(client):
+    register(client)
+    expired = jwt.encode(
+        {"sub": "1", "exp": datetime.now(timezone.utc) - timedelta(minutes=1)},
+        os.environ["SECRET_KEY"],
+        algorithm=ALGORITHM,
+    )
+    wrong_signature = jwt.encode(
+        {"sub": "1", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+        "x" * 40,
+        algorithm=ALGORITHM,
+    )
+    unknown_user = jwt.encode(
+        {"sub": "999", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
+        os.environ["SECRET_KEY"],
+        algorithm=ALGORITHM,
+    )
+
+    assert client.get("/auth/me").status_code == 401
+    for token in ("not-a-jwt", expired, wrong_signature, unknown_user):
+        assert client.get("/auth/me", headers=auth_headers(token)).status_code == 401
+
+
+def test_auth_me_accepts_identity_without_linked_profile(client):
+    client.post("/users", json={"email": "no-profile@example.com", "password": "Correct-Horse-42"})
+    token = login(client, "no-profile@example.com")
+
+    response = client.get("/auth/me", headers=auth_headers(token))
+
+    assert response.status_code == 200
+    assert response.json()["profile"] is None
+
+
+def test_inactive_user_cannot_login_or_use_existing_access_token(client):
+    from auth.security import create_access_token
+    import database
+
+    user = register(client)
+    database.update_user(user["id"], {"is_active": False})
+
+    response = client.post(
+        "/auth/login", json={"email": "user@example.com", "password": "Correct-Horse-42"}
+    )
+    assert response.status_code == 401
+    token = create_access_token(user["id"])
+    assert client.get("/auth/me", headers=auth_headers(token)).status_code == 401
 
 
 def test_user_cannot_change_password_through_generic_update(client):
@@ -119,6 +180,51 @@ def test_user_ownership_and_role_permissions(client, admin_headers):
     assert client.get(f"/users/{second['id']}", headers=first_headers).status_code == 403
 
 
+def test_user_collection_and_resource_authorization_and_missing_users(client, admin_headers):
+    user = register(client)
+    user_headers = auth_headers(login(client))
+
+    assert client.get("/users").status_code == 401
+    assert client.get("/users", headers=user_headers).status_code == 403
+    listed = client.get("/users", headers=admin_headers)
+    assert listed.status_code == 200
+    assert all("hashed_password" not in item for item in listed.json())
+
+    assert client.get("/users/999", headers=admin_headers).status_code == 404
+    assert client.put("/users/999", headers=admin_headers, json={"email": "new@example.com"}).status_code == 404
+    assert client.delete("/users/999", headers=admin_headers).status_code == 404
+    assert client.get(f"/users/{user['id']}").status_code == 401
+    assert client.put(f"/users/{user['id']}", json={"email": "new@example.com"}).status_code == 401
+    assert client.delete(f"/users/{user['id']}").status_code == 401
+
+
+def test_non_admin_cannot_read_or_modify_another_users_resource(client):
+    first = register(client, "first@example.com")
+    second = register(client, "second@example.com")
+    headers = auth_headers(login(client, "first@example.com"))
+
+    assert client.get(f"/users/{second['id']}", headers=headers).status_code == 403
+    assert client.put(
+        f"/users/{second['id']}", headers=headers, json={"email": "changed@example.com"}
+    ).status_code == 403
+    assert client.delete(f"/users/{second['id']}", headers=headers).status_code == 403
+    assert client.get(f"/users/{first['id']}", headers=headers).status_code == 200
+
+
+def test_user_update_rejects_empty_duplicate_and_invalid_updates(client):
+    first = register(client, "first@example.com")
+    register(client, "second@example.com")
+    headers = auth_headers(login(client, "first@example.com"))
+
+    assert client.put(f"/users/{first['id']}", headers=headers, json={}).status_code == 422
+    duplicate = client.put(
+        f"/users/{first['id']}", headers=headers, json={"email": "second@example.com"}
+    )
+    assert duplicate.status_code == 409
+    assert client.put(f"/users/{first['id']}", headers=headers, json={"email": None}).status_code == 422
+    assert client.put(f"/users/{first['id']}", headers=headers, json={"unknown": "value"}).status_code == 422
+
+
 def test_deleting_user_cascades_profile(client):
     user = register(client)
     headers = auth_headers(login(client))
@@ -126,6 +232,20 @@ def test_deleting_user_cascades_profile(client):
     assert response.status_code == 204
     assert client.get("/auth/me", headers=headers).status_code == 401
     assert client.get("/profiles/me", headers=headers).status_code == 401
+
+
+def test_profile_routes_require_auth_and_validate_updates(client):
+    register(client)
+    headers = auth_headers(login(client))
+
+    assert client.get("/profiles/me").status_code == 401
+    assert client.put("/profiles/me", json={"name": "New Name"}).status_code == 401
+    updated = client.put("/profiles/me", headers=headers, json={"name": "Updated", "phone": None})
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Updated"
+    assert client.put("/profiles/me", headers=headers, json={}).status_code == 422
+    assert client.put("/profiles/me", headers=headers, json={"name": ""}).status_code == 422
+    assert client.put("/profiles/me", headers=headers, json={"name": "Updated", "extra": True}).status_code == 422
 
 
 def test_invalid_login_and_malformed_stored_hash_fail_closed(client):

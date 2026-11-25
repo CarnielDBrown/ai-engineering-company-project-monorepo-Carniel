@@ -1,11 +1,11 @@
-"""Pydantic models for HealthCore supplier records."""
-
-from __future__ import annotations
+"""Pydantic supplier models and SQLModel inventory tables."""
 
 from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from sqlmodel import Field as SQLField
+from sqlmodel import Relationship, SQLModel
 
 SupplierCountry = Literal["USA", "UK"]
 SupplierStatus = Literal["active", "suspended"]
@@ -79,6 +79,51 @@ class SupplierResponse(SupplierFields):
 
     id: int
     updated_at: datetime
+
+
+class MedicalSupply(SQLModel, table=True):
+    """A catalogue item; stock is derived from deliveries and consumptions."""
+
+    __tablename__ = "medical_supplies"
+
+    id: int | None = SQLField(default=None, primary_key=True)
+    name: str
+    sku: str = SQLField(index=True, unique=True)
+    category: str
+    unit: str
+    country: str
+    deliveries: list["SupplyDelivery"] = Relationship(back_populates="supply")
+    consumptions: list["SupplyConsumption"] = Relationship(back_populates="supply")
+
+
+class SupplyDelivery(SQLModel, table=True):
+    """Inbound stock movement from a vendor to one clinic."""
+
+    __tablename__ = "supply_deliveries"
+
+    id: int | None = SQLField(default=None, primary_key=True)
+    supply_id: int = SQLField(foreign_key="medical_supplies.id", index=True)
+    quantity: int
+    vendor_name: str
+    clinic_id: int
+    created_at: datetime = SQLField(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    user_uuid: str
+    supply: "MedicalSupply" = Relationship(back_populates="deliveries")
+
+
+class SupplyConsumption(SQLModel, table=True):
+    """Outbound stock movement recorded by clinic staff."""
+
+    __tablename__ = "supply_consumptions"
+
+    id: int | None = SQLField(default=None, primary_key=True)
+    supply_id: int = SQLField(foreign_key="medical_supplies.id", index=True)
+    quantity: int
+    consumption_type: str
+    clinic_id: int
+    created_at: datetime = SQLField(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    user_uuid: str
+    supply: "MedicalSupply" = Relationship(back_populates="consumptions")
 
 
 def utc_now() -> datetime:

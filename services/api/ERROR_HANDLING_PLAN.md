@@ -57,10 +57,10 @@ These are inspection targets, not assumptions that the entire feature is defecti
 
 ## Status
 
-- Phase 4 implementation is complete and validated on the existing `feature/auth-recovery` work branch. No snapshot/commit was created.
+- Phase 4 implementation is complete and validated; snapshot `6a8eef0` (`feat(errors): harden HealthCore failure handling`) is committed and pushed on `feature/auth-recovery`, matching `origin/feature/auth-recovery`.
 - Backoffice behavior: API messages are allowlisted and raw proxy/backend details are suppressed; supplier retry appears only for list-load failures; incident upload/export errors have distinct recovery actions; async loading/busy states are reset in `finally` blocks.
 - API/shared package: incident upload-read and export-generation failures map to safe structured HTTP errors, client filenames are not echoed, and generic analyzer I/O failures map to a safe domain error.
 - Script: the pandas sample reports missing pandas and common input/read/CSV errors to stderr with a non-zero exit; no dataset rows or local paths are emitted.
 - Validation: API plus analyzer package suites: **27 passed** (one existing Starlette TestClient/httpx deprecation warning); backoffice `npm run lint` and `npm run build` passed; analyzer package regression: **1 passed**; script syntax compilation passed. `git diff --check` passed.
 - Limitation: the pandas runtime CSV cases could not be exercised because `pandas` is not importable by the configured terminal interpreter (the package-install operation did not make it available there). The script's syntax and safe missing-dependency exit were verified; CSV runtime checks still require a working pandas installation.
-- Phase 5 remains pending; do not start it until this phase is reviewed and snapshotted separately.
+- Phase 5 may begin from the verified Phase 4 snapshot; its implementation is tracked separately on `feature/bullet-proof-tests`.
