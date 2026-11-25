@@ -3,6 +3,7 @@ import {
   ApiRequestError,
   TOKEN_KEY,
   apiError,
+  authFetch,
   clearToken,
   getToken,
   readApiResponse,
@@ -35,10 +36,29 @@ describe("auth token storage", () => {
   });
 });
 
+describe("authenticated API requests", () => {
+  it("uses the same-origin API proxy and attaches the bearer token", async () => {
+    saveToken("test-access-token");
+    const fetchMock = vi.fn().mockResolvedValue(new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await authFetch("/inventory/products");
+
+    const [requestUrl, requestOptions] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(requestOptions.headers);
+    expect(requestUrl).toBe("/api/inventory/products");
+    expect(headers.get("Authorization")).toBe("Bearer test-access-token");
+    expect(headers.get("Content-Type")).toBe("application/json");
+  });
+});
+
 describe("API error messages", () => {
   it("allows only known safe API details", () => {
     expect(apiError({ detail: "Incorrect email or password" }, "Fallback")).toBe(
       "Incorrect email or password",
+    );
+    expect(apiError({ detail: "A medical supply with this SKU already exists" }, "Fallback")).toBe(
+      "A medical supply with this SKU already exists",
     );
     expect(apiError({ detail: "database password=secret" }, "Fallback")).toBe("Fallback");
     expect(apiError({ detail: ["validation", "details"] }, "Fallback")).toBe(
@@ -46,6 +66,11 @@ describe("API error messages", () => {
     );
     expect(apiError({ message: "private failure" }, "Fallback")).toBe("Fallback");
     expect(apiError(null, "Fallback")).toBe("Fallback");
+    expect(apiError({ detail: "Insufficient stock for supply 'Nitrile gloves'. Available: 24, requested: 99." }, "Fallback")).toBe(
+      "Insufficient stock for Nitrile gloves. Available: 24, requested: 99.",
+    );
+    expect(apiError({ detail: "Insufficient stock for supply 'Nitrile gloves'. Available: secret, requested: 99." }, "Fallback")).toBe("Fallback");
+    expect(apiError({ detail: "Insufficient stock for supply 'Nitrile gloves'. Available: 24, requested: 99. postgres://secret" }, "Fallback")).toBe("Fallback");
   });
 });
 
